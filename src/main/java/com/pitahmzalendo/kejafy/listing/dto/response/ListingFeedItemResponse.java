@@ -10,10 +10,11 @@ import java.util.List;
 /**
  * The public feed card. This is THE enforcement point for the
  * location-gating selling point: a non-subscriber gets {@code locked=true}
- * and every field below {@code videos}/{@code likeCount}/{@code likedByMe}
- * comes back null — no title, description, price, neighbourhood, or GPS.
- * They can still watch and like. A subscriber gets everything, including
- * the exact pin, via {@link #unlocked}.
+ * and every field below {@code videos}/{@code likeCount}/{@code likedByMe}/
+ * {@code commentCount} comes back null — no title, description, price,
+ * neighbourhood, or GPS. They can still watch, like, and read (though not
+ * post) comments — see CommentService. A subscriber gets everything,
+ * including the exact pin, via {@link #unlocked}.
  *
  * Deliberately NOT built from ListingDetailResponse or by nulling fields
  * on a shared object — two separate factory methods make it obvious at a
@@ -26,6 +27,7 @@ public record ListingFeedItemResponse(
         List<ListingVideoResponse> videos,
         long likeCount,
         boolean likedByMe,
+        long commentCount,
         String title,
         String description,
         PropertyType propertyType,
@@ -45,6 +47,7 @@ public record ListingFeedItemResponse(
                 listing.getVideos().stream().map(ListingVideoResponse::from).toList(),
                 listing.getLikeCount(),
                 likedByMe,
+                listing.getCommentCount(),
                 null, null, null, null, null, null, null, null, null, null, null
         );
     }
@@ -56,6 +59,7 @@ public record ListingFeedItemResponse(
                 listing.getVideos().stream().map(ListingVideoResponse::from).toList(),
                 listing.getLikeCount(),
                 likedByMe,
+                listing.getCommentCount(),
                 listing.getTitle(),
                 listing.getDescription(),
                 listing.getPropertyType(),

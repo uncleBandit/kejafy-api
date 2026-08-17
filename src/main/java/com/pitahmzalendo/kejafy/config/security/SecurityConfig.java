@@ -1,9 +1,9 @@
 package com.pitahmzalendo.kejafy.config.security;
 
-
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.HeadersConfigurer;
@@ -17,6 +17,12 @@ import java.util.List;
 
 @Configuration
 @EnableWebSecurity
+// Required for @PreAuthorize("hasRole('AGENT')") / hasRole('ADMIN') on
+// AgentApplicationController's admin endpoints, ListingController,
+// AdminListingController, AdminAgentApplicationController, etc. Without
+// this, those annotations are silently ignored — the endpoint stays
+// reachable by anyone authenticated, regardless of role.
+@EnableMethodSecurity
 public class SecurityConfig {
 
     // Set app.cors.allowed-origins in application.properties, e.g.
@@ -68,7 +74,14 @@ public class SecurityConfig {
                                 "/actuator/health", "/actuator/info",
                                 "/oauth2/**", "/login/**",
                                 "/swagger-ui.html", "/swagger-ui/**",
-                                "/v3/api-docs", "/v3/api-docs/**", "/v3/api-docs.yaml"
+                                "/v3/api-docs", "/v3/api-docs/**", "/v3/api-docs.yaml",
+                                // Safaricom and Stripe hit these directly — neither can carry
+                                // our session cookie or OAuth login. Trust is established
+                                // differently for each: see MpesaCallbackController (re-query
+                                // Daraja rather than trusting the POST body) and
+                                // StripeWebhookController (signature verification).
+                                "/api/v1/payments/mpesa/callback",
+                                "/api/v1/payments/stripe/webhook"
                         ).permitAll()
                         .anyRequest().authenticated()
                 )

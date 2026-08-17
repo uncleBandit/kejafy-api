@@ -73,7 +73,7 @@ public class User {
     )
     private List<SocialAccount> socialAccounts = new ArrayList<>();
 
-    protected User() {
+    public User() {
         // JPA
     }
 

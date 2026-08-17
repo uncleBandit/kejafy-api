@@ -98,6 +98,9 @@ public class Listing {
 
     private LocalDateTime publishedAt;
 
+    @Column(name = "comment_count", nullable = false)
+    private long commentCount = 0;
+
     @OneToMany(mappedBy = "listing", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("displayOrder ASC")
     private List<ListingVideo> videos = new ArrayList<>();
@@ -307,4 +310,20 @@ public class Listing {
     public List<ListingVideo> getVideos() {
         return videos;
     }
+
+    public long getCommentCount() {
+        return commentCount;
+    }
+
+    public void incrementCommentCount() {
+        this.commentCount++;
+    }
+
+    public void decrementCommentCount() {
+        if (this.commentCount > 0) {
+            this.commentCount--;
+        }
+    }
+
+
 }
