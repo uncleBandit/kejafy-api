@@ -6,6 +6,7 @@ import com.pitahmzalendo.kejafy.payment.dto.response.StkStatusQueryResponse;
 import com.pitahmzalendo.kejafy.payment.exception.PaymentProviderException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -68,19 +69,8 @@ public class MpesaClient {
                 (properties.getShortcode() + properties.getPasskey() + timestamp).getBytes());
 
         Map<String, Object> body = Map.of(
-                "BusinessShortCode", properties.getShortcode(),
-                "Password", password,
-                "Timestamp", timestamp,
-                "TransactionType", "CustomerPayBillOnline",
                 // Daraja wants a whole-number string amount — KES has no
                 // meaningful sub-unit for STK push purposes.
-                "Amount", amount.setScale(0, java.math.RoundingMode.CEILING).toBigInteger().toString(),
-                "PartyA", normalizedPhone,
-                "PartyB", properties.getShortcode(),
-                "PhoneNumber", normalizedPhone,
-                "CallBackURL", properties.getCallbackUrl(),
-                "AccountReference", accountReference,
-                "TransactionDesc", transactionDesc
         );
 
         try {
@@ -140,7 +130,7 @@ public class MpesaClient {
                 (properties.getConsumerKey() + ":" + properties.getConsumerSecret()).getBytes());
 
         try {
-            Map<String, Object> response = restClient.get()
+            Map response = restClient.get()
                     .uri("/oauth/v1/generate?grant_type=client_credentials")
                     .header(HttpHeaders.AUTHORIZATION, "Basic " + credentials)
                     .retrieve()
