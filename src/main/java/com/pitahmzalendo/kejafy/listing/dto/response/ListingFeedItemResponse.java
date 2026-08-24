@@ -20,6 +20,12 @@ import java.util.List;
  * on a shared object — two separate factory methods make it obvious at a
  * glance which fields are safe for a non-subscriber and prevent a future
  * edit from accidentally wiring a gated field into the locked path.
+ *
+ * distanceKm is populated only when the request was a geo search (see
+ * ListingSearchFilter) — it's straight-line distance from the caller's
+ * search center, not the listing's own coordinates, so it's safe to show
+ * even on a locked card: knowing "this is 2.3km from the point I searched"
+ * doesn't reveal the listing's actual pin the way latitude/longitude would.
  */
 public record ListingFeedItemResponse(
         Long id,
@@ -38,9 +44,14 @@ public record ListingFeedItemResponse(
         Integer bathrooms,
         String neighbourhood,
         BigDecimal latitude,
-        BigDecimal longitude
+        BigDecimal longitude,
+        Double distanceKm
 ) {
     public static ListingFeedItemResponse locked(Listing listing, boolean likedByMe) {
+        return locked(listing, likedByMe, null);
+    }
+
+    public static ListingFeedItemResponse locked(Listing listing, boolean likedByMe, Double distanceKm) {
         return new ListingFeedItemResponse(
                 listing.getId(),
                 true,
@@ -48,11 +59,16 @@ public record ListingFeedItemResponse(
                 listing.getLikeCount(),
                 likedByMe,
                 listing.getCommentCount(),
-                null, null, null, null, null, null, null, null, null, null, null
+                null, null, null, null, null, null, null, null, null, null, null,
+                distanceKm
         );
     }
 
     public static ListingFeedItemResponse unlocked(Listing listing, boolean likedByMe) {
+        return unlocked(listing, likedByMe, null);
+    }
+
+    public static ListingFeedItemResponse unlocked(Listing listing, boolean likedByMe, Double distanceKm) {
         return new ListingFeedItemResponse(
                 listing.getId(),
                 false,
@@ -70,7 +86,8 @@ public record ListingFeedItemResponse(
                 listing.getBathrooms(),
                 listing.getNeighbourhood(),
                 listing.getLatitude(),
-                listing.getLongitude()
+                listing.getLongitude(),
+                distanceKm
         );
     }
 }

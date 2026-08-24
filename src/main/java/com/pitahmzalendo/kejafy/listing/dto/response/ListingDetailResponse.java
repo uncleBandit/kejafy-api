@@ -9,11 +9,16 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
+
 /**
  * The full record, including the exact GPS pin — only ever built for:
  * the owning agent, an admin, or (via ListingFeedService) a subscriber.
  * Never return this from an endpoint an unauthenticated or
  * non-subscribed customer can reach; use ListingFeedItemResponse there.
+ *
+ * verified/flaggedForReview/reportCount are the trust-layer fields (see
+ * Listing + ReportService) — visible here since this DTO already only
+ * goes to the agent themselves or an admin, never a public reader.
  */
 public record ListingDetailResponse(
         Long id,
@@ -33,6 +38,9 @@ public record ListingDetailResponse(
         BigDecimal longitude,
         ListingStatus status,
         String rejectionReason,
+        boolean verified,
+        boolean flaggedForReview,
+        long reportCount,
         long viewCount,
         long likeCount,
         long commentCount,
@@ -60,6 +68,9 @@ public record ListingDetailResponse(
                 listing.getLongitude(),
                 listing.getStatus(),
                 listing.getRejectionReason(),
+                listing.isVerified(),
+                listing.isFlaggedForReview(),
+                listing.getReportCount(),
                 listing.getViewCount(),
                 listing.getLikeCount(),
                 listing.getCommentCount(),

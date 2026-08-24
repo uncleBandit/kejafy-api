@@ -83,6 +83,32 @@ public class Listing {
     @Column(name = "rejection_reason", length = 500)
     private String rejectionReason;
 
+    // Admin-confirmed trust signal, separate from `status`: PUBLISHED
+    // only means "passed content moderation", not that anyone checked
+    // the property is real. See ReportService/AdminReportController —
+    // admins toggle this after some out-of-band confirmation (site
+    // visit, phone verification, etc). Shown as a badge on unlocked
+    // feed cards; never implied by status alone.
+    @Column(name = "verified", nullable = false)
+    private boolean verified = false;
+
+    private LocalDateTime verifiedAt;
+
+    // Fraud-reporting trust gate: set by ReportService once a listing's
+    // pending report count crosses ReportService.AUTO_FLAG_THRESHOLD.
+    // A flagged listing is pulled out of the public feed (see
+    // ListingRepository.findByStatus...FlaggedForReviewFalse... and the
+    // native search query) even though `status` is still PUBLISHED —
+    // this way an admin's later decision (dismiss vs take down) doesn't
+    // need to guess or reconstruct what status the listing had before.
+    @Column(name = "flagged_for_review", nullable = false)
+    private boolean flaggedForReview = false;
+
+    private LocalDateTime flaggedAt;
+
+    @Column(name = "report_count", nullable = false)
+    private long reportCount = 0;
+
     @Column(name = "view_count", nullable = false)
     private long viewCount = 0;
 
@@ -159,6 +185,31 @@ public class Listing {
 
     public void archive() {
         this.status = ListingStatus.ARCHIVED;
+    }
+
+    public void verify() {
+        this.verified = true;
+        this.verifiedAt = LocalDateTime.now();
+    }
+
+    public void unverify() {
+        this.verified = false;
+        this.verifiedAt = null;
+    }
+
+    /** Pulls the listing out of the public feed without touching `status`. See field javadoc. */
+    public void flagForReview() {
+        this.flaggedForReview = true;
+        this.flaggedAt = LocalDateTime.now();
+    }
+
+    public void clearFlag() {
+        this.flaggedForReview = false;
+        this.flaggedAt = null;
+    }
+
+    public void incrementReportCount() {
+        this.reportCount++;
     }
 
     public void incrementViewCount() {
@@ -277,6 +328,26 @@ public class Listing {
 
     public ListingStatus getStatus() {
         return status;
+    }
+
+    public boolean isVerified() {
+        return verified;
+    }
+
+    public LocalDateTime getVerifiedAt() {
+        return verifiedAt;
+    }
+
+    public boolean isFlaggedForReview() {
+        return flaggedForReview;
+    }
+
+    public LocalDateTime getFlaggedAt() {
+        return flaggedAt;
+    }
+
+    public long getReportCount() {
+        return reportCount;
     }
 
     public String getRejectionReason() {
