@@ -1,0 +1,88 @@
+name: tests
+
+on:
+  push:
+    branches:
+      - develop
+      - main
+  pull_request:
+    branches:
+      - develop
+      - main
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+
+    # The app boots against real Postgres and Redis (contextLoads starts the
+    # whole Spring context), so the suite gets both as services.
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: kejafy_test
+          POSTGRES_USER: kejafy
+          POSTGRES_PASSWORD: kejafy
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U kejafy -d kejafy_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    # Every ${...} in application.properties without a default must resolve,
+    # or the context fails to start. Dummy values are enough for the tests.
+    env:
+      POSTGRES_HOST: 127.0.0.1
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: kejafy_test
+      POSTGRES_USER: kejafy
+      POSTGRES_PASSWORD: kejafy
+      REDIS_HOST: 127.0.0.1
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ''
+      GOOGLE_CLIENT_ID: test-client-id
+      GOOGLE_CLIENT_SECRET: test-client-secret
+      MPESA_CONSUMER_KEY: test
+      MPESA_CONSUMER_SECRET: test
+      MPESA_SHORTCODE: '174379'
+      MPESA_PASSKEY: test
+      MPESA_CALLBACK_URL: https://example.test/api/v1/payments/mpesa/callback
+      STRIPE_SECRET_KEY: sk_test_dummy
+      STRIPE_PUBLISHABLE_KEY: pk_test_dummy
+      STRIPE_WEBHOOK_SECRET: whsec_dummy
+      SPRING_JPA_SHOW_SQL: 'false'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Run tests
+        run: |
+          chmod +x mvnw
+          ./mvnw -B -ntp verify
+
+      - name: Upload test reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: surefire-reports
+          path: target/surefire-reports/
+          retention-days: 7

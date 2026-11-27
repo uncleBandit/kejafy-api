@@ -45,6 +45,8 @@ public record ListingDetailResponse(
         long likeCount,
         long commentCount,
         List<ListingVideoResponse> videos,
+        List<ListingAmenityResponse> amenities,
+        EnvironmentProfileResponse environmentProfile,
         LocalDateTime createdAt,
         LocalDateTime updatedAt,
         LocalDateTime publishedAt
@@ -75,6 +77,8 @@ public record ListingDetailResponse(
                 listing.getLikeCount(),
                 listing.getCommentCount(),
                 listing.getVideos().stream().map(ListingVideoResponse::from).toList(),
+                listing.getAmenities().stream().map(ListingAmenityResponse::from).toList(),
+                EnvironmentProfileResponse.from(listing.getEnvironmentProfile()),
                 listing.getCreatedAt(),
                 listing.getUpdatedAt(),
                 listing.getPublishedAt()

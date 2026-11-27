@@ -94,6 +94,13 @@ public class ListingFeedService {
                 filter.minBedrooms(),
                 filter.minBathrooms(),
                 blankToNull(filter.neighbourhood()),
+                filter.maxNoiseLevel(),
+                filter.maxFloodRiskLevel(),
+                filter.minRoadAccessQuality(),
+                filter.minSecurityLevel(),
+                filter.minWaterReliability(),
+                filter.minPowerReliability(),
+                filter.requireAmenityType() != null ? filter.requireAmenityType().name() : null,
                 (filter.sort() != null ? filter.sort() : com.pitahmzalendo.kejafy.listing.entity.ListingSearchSort.NEWEST).name(),
                 pageable
         );

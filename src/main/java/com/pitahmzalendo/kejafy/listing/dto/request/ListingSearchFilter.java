@@ -1,5 +1,6 @@
 package com.pitahmzalendo.kejafy.listing.dto.request;
 
+import com.pitahmzalendo.kejafy.listing.entity.AmenityType;
 import com.pitahmzalendo.kejafy.listing.entity.ListingPurpose;
 import com.pitahmzalendo.kejafy.listing.entity.ListingSearchSort;
 import com.pitahmzalendo.kejafy.listing.entity.PropertyType;
@@ -30,9 +31,17 @@ public record ListingSearchFilter(
         Integer minBedrooms,
         Integer minBathrooms,
         String neighbourhood,
+        Integer maxNoiseLevel,
+        Integer maxFloodRiskLevel,
+        Integer minRoadAccessQuality,
+        Integer minSecurityLevel,
+        Integer minWaterReliability,
+        Integer minPowerReliability,
+        AmenityType requireAmenityType,
         ListingSearchSort sort
 ) {
     public boolean hasCenter() {
         return lat != null && lng != null;
     }
 }
+
