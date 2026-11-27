@@ -1,0 +1,28 @@
+# Keep the build context small and keep host artefacts out of the image.
+
+# Build output (rebuilt inside the image)
+target
+
+# Secrets — never bake these into an image layer
+.env
+.env.*
+!.env.example
+
+# VCS / CI / editors
+.git
+.gitignore
+.github
+.idea
+.vscode
+.DS_Store
+*.log
+src.zip
+
+# Not needed to build the jar
+deploy
+docker-compose*.yml
+compose*.yaml
+Dockerfile*
+.dockerignore
+HELP.md
+README.md

@@ -1,0 +1,93 @@
+name: deploy-mvp
+
+# Deploys Kejafy to the shared MVP server (see deploy/mvp/README.md), the same
+# server HolidayHub and the other MVPs live on.
+#
+# Runs after the tests pass on main, or by hand (Actions → deploy-mvp → Run
+# workflow).
+#
+# Settings → Secrets and variables → Actions:
+#   secret    DEPLOY_SSH_KEY   private key whose public half is on the server
+#   variables DEPLOY_HOST      the server's static IP
+#             DEPLOY_USER      ubuntu (Lightsail) or your deploy user
+#             MVP_APP          this app's name on the server, e.g. kejafy
+#             APP_URL          https://kejafy.unclecanvas.com
+
+on:
+  workflow_run:
+    workflows: [tests]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-mvp
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    # Skipped (not failed) until the server is set up and DEPLOY_HOST is set.
+    if: vars.DEPLOY_HOST != '' && (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-latest
+    environment:
+      name: mvp
+      url: ${{ vars.APP_URL }}
+    env:
+      HOST: ${{ vars.DEPLOY_HOST }}
+      USER: ${{ vars.DEPLOY_USER || 'ubuntu' }}
+      APP: ${{ vars.MVP_APP || 'kejafy' }}
+    steps:
+      - name: Checkout the tested commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Release id
+        id: release
+        run: echo "id=$(date -u +%Y%m%d%H%M%S)-$(git rev-parse --short=8 HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      # Built here, not on the server: a small server runs out of memory doing it.
+      # The tests already passed in the tests workflow for this commit.
+      - name: Build the release
+        run: |
+          chmod +x mvnw
+          ./mvnw -B -ntp -DskipTests package
+          mkdir -p "$RUNNER_TEMP/release/deploy/mvp"
+          cp target/KejaFy-*.jar "$RUNNER_TEMP/release/app.jar"
+          cp deploy/mvp/release.sh "$RUNNER_TEMP/release/deploy/mvp/"
+          tar -czf "$RUNNER_TEMP/release.tgz" -C "$RUNNER_TEMP/release" .
+
+      - name: SSH key
+        run: |
+          install -m 700 -d ~/.ssh
+          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          ssh-keyscan -H "$HOST" >> ~/.ssh/known_hosts
+
+      - name: Upload and activate
+        env:
+          ID: ${{ steps.release.outputs.id }}
+        run: |
+          scp -i ~/.ssh/id_deploy "$RUNNER_TEMP/release.tgz" "$USER@$HOST:/var/www/$APP/releases/$ID.tgz"
+          ssh -i ~/.ssh/id_deploy "$USER@$HOST" "set -e
+            cd /var/www/$APP/releases
+            mkdir $ID && tar -xzf $ID.tgz -C $ID && rm $ID.tgz
+            bash $ID/deploy/mvp/release.sh $APP $ID"
+
+      - name: Check the site from outside
+        run: |
+          for i in $(seq 1 10); do
+            if curl -fsS --max-time 10 "${{ vars.APP_URL }}/actuator/health" >/dev/null; then
+              echo "Live: ${{ vars.APP_URL }}"; exit 0
+            fi
+            sleep 6
+          done
+          echo "${{ vars.APP_URL }}/actuator/health did not answer after the deploy." >&2
+          exit 1

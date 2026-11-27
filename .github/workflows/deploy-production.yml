@@ -1,0 +1,124 @@
+name: deploy-production
+
+# For when Kejafy graduates to its own server: the Docker stack in
+# compose.prod.yaml. Manual only; day-to-day deploys go to the shared MVP
+# server through deploy-mvp.yml.
+#
+# The image is built here (the server only pulls), tagged with the commit SHA
+# and "latest", then the server pulls it and restarts.
+#
+# Settings → Secrets and variables → Actions:
+#   secrets   PROD_SSH_KEY   private key whose public half is in the server's
+#                            ~/.ssh/authorized_keys
+#   variables PROD_HOST      the server's static IP
+#             PROD_USER      ubuntu (default)
+#             PROD_URL       https://api.kejafy.com
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+env:
+  IMAGE: ghcr.io/unclebandit/kejafy-api
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Image tag
+        id: tag
+        run: echo "tag=$(git rev-parse --short=12 HEAD)" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push the image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: prod
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:${{ steps.tag.outputs.tag }}
+            ${{ env.IMAGE }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    needs: build
+    # Skipped (not failed) until the server is set up and PROD_HOST is set.
+    if: vars.PROD_HOST != ''
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: ${{ vars.PROD_URL }}
+    permissions:
+      contents: read
+      packages: read
+    env:
+      HOST: ${{ vars.PROD_HOST }}
+      USER: ${{ vars.PROD_USER || 'ubuntu' }}
+      TAG: ${{ needs.build.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: SSH key
+        run: |
+          install -m 700 -d ~/.ssh
+          echo "${{ secrets.PROD_SSH_KEY }}" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          ssh-keyscan -H "$HOST" >> ~/.ssh/known_hosts
+
+      - name: Copy the stack definition
+        run: |
+          scp -i ~/.ssh/id_deploy compose.prod.yaml "$USER@$HOST:/opt/kejafy/compose.prod.yaml"
+          scp -i ~/.ssh/id_deploy deploy/caddy/Caddyfile "$USER@$HOST:/opt/kejafy/Caddyfile"
+
+      - name: Pull and restart
+        run: |
+          ssh -i ~/.ssh/id_deploy "$USER@$HOST" \
+            TAG="$TAG" REGISTRY_USER="${{ github.actor }}" REGISTRY_TOKEN="${{ secrets.GITHUB_TOKEN }}" \
+            'bash -s' <<'REMOTE'
+          set -euo pipefail
+          cd /opt/kejafy
+          export IMAGE_TAG="$TAG"
+          compose() { docker compose -f compose.prod.yaml "$@"; }
+
+          echo "$REGISTRY_TOKEN" | docker login ghcr.io -u "$REGISTRY_USER" --password-stdin
+          compose pull --quiet app
+          docker logout ghcr.io
+
+          compose up -d --wait --remove-orphans
+
+          # Remember the running release, so a reboot or manual `up` keeps it.
+          sed -i "s/^IMAGE_TAG=.*/IMAGE_TAG=$TAG/" .env
+
+          docker image prune -af --filter "until=168h" >/dev/null
+          compose ps
+          REMOTE
+
+      - name: Check the site is up
+        run: |
+          for i in $(seq 1 20); do
+            if curl -fsS --max-time 10 "${{ vars.PROD_URL }}/actuator/health" >/dev/null; then
+              echo "Live: ${{ vars.PROD_URL }} ($TAG)"; exit 0
+            fi
+            sleep 6
+          done
+          echo "The site did not answer on /actuator/health after the deploy." >&2
+          exit 1
