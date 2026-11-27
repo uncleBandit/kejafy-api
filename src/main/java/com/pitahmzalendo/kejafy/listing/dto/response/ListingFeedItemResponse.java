@@ -26,6 +26,14 @@ import java.util.List;
  * search center, not the listing's own coordinates, so it's safe to show
  * even on a locked card: knowing "this is 2.3km from the point I searched"
  * doesn't reveal the listing's actual pin the way latitude/longitude would.
+ *
+ * amenities/environmentProfile are populated on BOTH locked and unlocked
+ * cards, deliberately outside the gate everything else here sits behind.
+ * They describe the surroundings ("school 400m away", "flood risk: low"),
+ * never the listing's own exact coordinates (see ListingAmenity /
+ * EnvironmentProfile class javadocs) — they're the decision factors meant
+ * to make a browsing non-subscriber want to unlock the pin, not something
+ * that needs to be withheld itself.
  */
 public record ListingFeedItemResponse(
         Long id,
@@ -34,6 +42,8 @@ public record ListingFeedItemResponse(
         long likeCount,
         boolean likedByMe,
         long commentCount,
+        List<ListingAmenityResponse> amenities,
+        EnvironmentProfileResponse environmentProfile,
         String title,
         String description,
         PropertyType propertyType,
@@ -59,6 +69,11 @@ public record ListingFeedItemResponse(
                 listing.getLikeCount(),
                 likedByMe,
                 listing.getCommentCount(),
+                listing.getAmenities().stream().map(ListingAmenityResponse::from).toList(),
+                EnvironmentProfileResponse.from(listing.getEnvironmentProfile()),
+                // title, description, propertyType, purpose, priceAmount,
+                // priceCurrency, bedrooms, bathrooms, neighbourhood, latitude,
+                // longitude — all gated.
                 null, null, null, null, null, null, null, null, null, null, null,
                 distanceKm
         );
@@ -76,6 +91,8 @@ public record ListingFeedItemResponse(
                 listing.getLikeCount(),
                 likedByMe,
                 listing.getCommentCount(),
+                listing.getAmenities().stream().map(ListingAmenityResponse::from).toList(),
+                EnvironmentProfileResponse.from(listing.getEnvironmentProfile()),
                 listing.getTitle(),
                 listing.getDescription(),
                 listing.getPropertyType(),

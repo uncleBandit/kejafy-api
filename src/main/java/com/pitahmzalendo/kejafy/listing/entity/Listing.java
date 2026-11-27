@@ -131,6 +131,26 @@ public class Listing {
     @OrderBy("displayOrder ASC")
     private List<ListingVideo> videos = new ArrayList<>();
 
+    // Nearby points of interest (schools, hospitals, matatu stage, etc).
+    // Same cascade/orphanRemoval pattern as videos — deleting the
+    // listing deletes its amenity claims, and removing one from this
+    // list (see removeAmenity) deletes the orphaned row rather than
+    // leaving it dangling. Shown on both locked and unlocked feed
+    // cards — see ListingAmenity class javadoc for why that's safe.
+    @OneToMany(mappedBy = "listing", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("distanceKm ASC")
+    private List<ListingAmenity> amenities = new ArrayList<>();
+
+    // "What's it like to actually live here" — noise, flood risk, road
+    // access, security, utility reliability. Embedded rather than its
+    // own table (see EnvironmentProfile javadoc); starts empty
+    // (isEmpty() true) until an agent or admin fills it in via
+    // ListingService.updateEnvironmentProfile. Shown unlocked on the
+    // feed for the same reason amenities are — it's a decision factor,
+    // not the paid selling point.
+    @Embedded
+    private EnvironmentProfile environmentProfile = new EnvironmentProfile();
+
     protected Listing() {
         // JPA
     }
@@ -165,6 +185,20 @@ public class Listing {
     public void addVideo(ListingVideo video) {
         videos.add(video);
         video.setListing(this);
+    }
+
+    public void addAmenity(ListingAmenity amenity) {
+        amenities.add(amenity);
+        amenity.setListing(this);
+    }
+
+    /**
+     * @return true if an amenity with this id was found (and removed)
+     * on this listing — false lets the caller distinguish "not found"
+     * from "found and removed" without a separate lookup.
+     */
+    public boolean removeAmenity(Long amenityId) {
+        return amenities.removeIf(a -> a.getId() != null && a.getId().equals(amenityId));
     }
 
     public void submitForReview() {
@@ -380,6 +414,14 @@ public class Listing {
 
     public List<ListingVideo> getVideos() {
         return videos;
+    }
+
+    public List<ListingAmenity> getAmenities() {
+        return amenities;
+    }
+
+    public EnvironmentProfile getEnvironmentProfile() {
+        return environmentProfile;
     }
 
     public long getCommentCount() {

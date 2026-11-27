@@ -1,6 +1,8 @@
 package com.pitahmzalendo.kejafy.listing.controller;
 
+import com.pitahmzalendo.kejafy.config.security.KejafyOidcUser;
 import com.pitahmzalendo.kejafy.listing.dto.request.ListingReviewRequest;
+import com.pitahmzalendo.kejafy.listing.dto.request.UpdateEnvironmentProfileRequest;
 import com.pitahmzalendo.kejafy.listing.dto.response.ListingDetailResponse;
 import com.pitahmzalendo.kejafy.listing.service.ListingService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -12,6 +14,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -60,6 +63,22 @@ public class AdminListingController {
     @Operation(summary = "Force-unpublish a live listing (e.g. reported / policy violation)")
     public ResponseEntity<ListingDetailResponse> archive(@PathVariable Long id) {
         var listing = listingService.archiveAsAdmin(id);
+        return ResponseEntity.ok(ListingDetailResponse.from(listing));
+    }
+
+    @PutMapping("/{id}/environment-profile")
+    @Operation(
+            summary = "Override/confirm a listing's environment scores, even while it's live",
+            description = "Unlike the agent-side endpoint, this isn't restricted to DRAFT/REJECTED — an "
+                    + "admin can correct a misleading score (e.g. after a report) without needing the "
+                    + "listing unpublished first. Recorded with source=ADMIN_ASSESSED."
+    )
+    public ResponseEntity<ListingDetailResponse> updateEnvironmentProfile(
+            @PathVariable Long id,
+            @AuthenticationPrincipal KejafyOidcUser principal,
+            @Valid @RequestBody UpdateEnvironmentProfileRequest request
+    ) {
+        var listing = listingService.updateEnvironmentProfile(id, principal.getDomainUser(), request);
         return ResponseEntity.ok(ListingDetailResponse.from(listing));
     }
 }

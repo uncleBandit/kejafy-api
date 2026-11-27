@@ -3,6 +3,7 @@ package com.pitahmzalendo.kejafy.listing.controller;
 import com.pitahmzalendo.kejafy.config.security.KejafyOidcUser;
 import com.pitahmzalendo.kejafy.listing.dto.request.ListingSearchFilter;
 import com.pitahmzalendo.kejafy.listing.dto.response.ListingFeedItemResponse;
+import com.pitahmzalendo.kejafy.listing.entity.AmenityType;
 import com.pitahmzalendo.kejafy.listing.entity.ListingPurpose;
 import com.pitahmzalendo.kejafy.listing.entity.ListingSearchSort;
 import com.pitahmzalendo.kejafy.listing.entity.PropertyType;
@@ -13,6 +14,8 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Positive;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -74,11 +77,15 @@ public class ListingFeedController {
     }
 
     @GetMapping("/search")
-    @Operation(summary = "Search the published feed by area/radius, price, bedrooms, property type and purpose",
+    @Operation(summary = "Search the published feed by area/radius, price, bedrooms, property type, "
+            + "purpose, nearby amenities and environment factors",
             description = "lat+lng+radiusKm together scope results to a circle around a point (e.g. a map "
                     + "pin or the center of a neighbourhood) — radiusKm without both lat and lng, or "
                     + "sort=DISTANCE without both, is rejected with 400. All other filters are optional "
-                    + "and combine with AND; omit a param to not filter on it.")
+                    + "and combine with AND; omit a param to not filter on it. The max*/min* environment "
+                    + "params are thresholds against a listing's 1-5 EnvironmentProfile scores — a listing "
+                    + "with no profile assessed yet never matches a threshold, since an unscored listing "
+                    + "can't be verified to meet it.")
     public ResponseEntity<Page<ListingFeedItemResponse>> search(
             @AuthenticationPrincipal KejafyOidcUser principal,
             @Parameter(description = "Search center latitude, e.g. from a map pin")
@@ -95,11 +102,27 @@ public class ListingFeedController {
             @RequestParam(required = false) Integer minBathrooms,
             @Parameter(description = "Case-insensitive substring match against the agent-entered area name")
             @RequestParam(required = false) String neighbourhood,
+            @Parameter(description = "At most this noisy (1=very quiet, 5=very noisy)")
+            @RequestParam(required = false) @Min(1) @Max(5) Integer maxNoiseLevel,
+            @Parameter(description = "At most this much flood risk (1=none, 5=severe)")
+            @RequestParam(required = false) @Min(1) @Max(5) Integer maxFloodRiskLevel,
+            @Parameter(description = "At least this good road access (1=poor, 5=excellent)")
+            @RequestParam(required = false) @Min(1) @Max(5) Integer minRoadAccessQuality,
+            @Parameter(description = "At least this secure (1=poor, 5=excellent)")
+            @RequestParam(required = false) @Min(1) @Max(5) Integer minSecurityLevel,
+            @Parameter(description = "At least this reliable a water supply (1=poor, 5=excellent)")
+            @RequestParam(required = false) @Min(1) @Max(5) Integer minWaterReliability,
+            @Parameter(description = "At least this reliable a power supply (1=poor, 5=excellent)")
+            @RequestParam(required = false) @Min(1) @Max(5) Integer minPowerReliability,
+            @Parameter(description = "Only listings with at least one nearby amenity of this type, e.g. PRIMARY_SCHOOL")
+            @RequestParam(required = false) AmenityType requireAmenityType,
             @RequestParam(defaultValue = "NEWEST") ListingSearchSort sort,
             @PageableDefault(size = 10) Pageable pageable
     ) {
         var filter = new ListingSearchFilter(lat, lng, radiusKm, propertyType, purpose,
-                minPrice, maxPrice, minBedrooms, minBathrooms, neighbourhood, sort);
+                minPrice, maxPrice, minBedrooms, minBathrooms, neighbourhood,
+                maxNoiseLevel, maxFloodRiskLevel, minRoadAccessQuality, minSecurityLevel,
+                minWaterReliability, minPowerReliability, requireAmenityType, sort);
         var page = listingFeedService.search(principal.getDomainUser(), filter, pageable);
         return ResponseEntity.ok(page);
     }

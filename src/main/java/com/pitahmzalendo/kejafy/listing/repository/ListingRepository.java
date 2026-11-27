@@ -63,11 +63,30 @@ public interface ListingRepository extends JpaRepository<Listing, Long> {
      * own ORDER BY column, so an inactive branch evaluates to NULL for
      * every row and has no effect on ordering; published_at DESC is the
      * always-on tiebreaker.
+     *
+     * flagged_for_review is excluded here the same way
+     * findByStatusAndFlaggedForReviewFalseOrderByPublishedAtDesc excludes
+     * it for the plain feed — status alone isn't enough once a listing's
+     * been auto-flagged (see Listing.flaggedForReview javadoc), and this
+     * query used to miss that, which meant a flagged listing could still
+     * surface through search while hidden from the main feed.
+     *
+     * The env_* min/max params compare directly against the flat columns
+     * EnvironmentProfile embeds onto this table (see that class) — a
+     * threshold that's non-null only ever matches a listing that HAS a
+     * score for that column; an unscored (null) column never satisfies
+     * either a min or a max comparison in SQL, which is what we want
+     * (see ListingSearchFilter javadoc: unscored isn't "not excluded").
+     *
+     * requireAmenityType is an EXISTS against listing_amenities rather
+     * than a join, so it can't multiply result rows if a listing has
+     * more than one amenity of a type search doesn't even care about.
      */
     @Query(
             value = """
                     SELECT l.* FROM listings l
                     WHERE l.status = 'PUBLISHED'
+                      AND l.flagged_for_review = false
                       AND (:propertyType IS NULL OR l.property_type = :propertyType)
                       AND (:purpose IS NULL OR l.purpose = :purpose)
                       AND (:minPrice IS NULL OR l.price_amount >= :minPrice)
@@ -75,6 +94,18 @@ public interface ListingRepository extends JpaRepository<Listing, Long> {
                       AND (:minBedrooms IS NULL OR l.bedrooms >= :minBedrooms)
                       AND (:minBathrooms IS NULL OR l.bathrooms >= :minBathrooms)
                       AND (:neighbourhood IS NULL OR lower(l.neighbourhood) LIKE lower(concat('%', :neighbourhood, '%')))
+                      AND (:maxNoiseLevel IS NULL OR l.env_noise_level <= :maxNoiseLevel)
+                      AND (:maxFloodRiskLevel IS NULL OR l.env_flood_risk_level <= :maxFloodRiskLevel)
+                      AND (:minRoadAccessQuality IS NULL OR l.env_road_access_quality >= :minRoadAccessQuality)
+                      AND (:minSecurityLevel IS NULL OR l.env_security_level >= :minSecurityLevel)
+                      AND (:minWaterReliability IS NULL OR l.env_water_reliability >= :minWaterReliability)
+                      AND (:minPowerReliability IS NULL OR l.env_power_reliability >= :minPowerReliability)
+                      AND (
+                            :requireAmenityType IS NULL OR EXISTS (
+                                SELECT 1 FROM listing_amenities la
+                                WHERE la.listing_id = l.id AND la.type = :requireAmenityType
+                            )
+                          )
                       AND (
                             :radiusKm IS NULL OR
                             (6371 * acos(least(1.0, greatest(-1.0,
@@ -98,6 +129,7 @@ public interface ListingRepository extends JpaRepository<Listing, Long> {
             countQuery = """
                     SELECT count(*) FROM listings l
                     WHERE l.status = 'PUBLISHED'
+                      AND l.flagged_for_review = false
                       AND (:propertyType IS NULL OR l.property_type = :propertyType)
                       AND (:purpose IS NULL OR l.purpose = :purpose)
                       AND (:minPrice IS NULL OR l.price_amount >= :minPrice)
@@ -105,6 +137,18 @@ public interface ListingRepository extends JpaRepository<Listing, Long> {
                       AND (:minBedrooms IS NULL OR l.bedrooms >= :minBedrooms)
                       AND (:minBathrooms IS NULL OR l.bathrooms >= :minBathrooms)
                       AND (:neighbourhood IS NULL OR lower(l.neighbourhood) LIKE lower(concat('%', :neighbourhood, '%')))
+                      AND (:maxNoiseLevel IS NULL OR l.env_noise_level <= :maxNoiseLevel)
+                      AND (:maxFloodRiskLevel IS NULL OR l.env_flood_risk_level <= :maxFloodRiskLevel)
+                      AND (:minRoadAccessQuality IS NULL OR l.env_road_access_quality >= :minRoadAccessQuality)
+                      AND (:minSecurityLevel IS NULL OR l.env_security_level >= :minSecurityLevel)
+                      AND (:minWaterReliability IS NULL OR l.env_water_reliability >= :minWaterReliability)
+                      AND (:minPowerReliability IS NULL OR l.env_power_reliability >= :minPowerReliability)
+                      AND (
+                            :requireAmenityType IS NULL OR EXISTS (
+                                SELECT 1 FROM listing_amenities la
+                                WHERE la.listing_id = l.id AND la.type = :requireAmenityType
+                            )
+                          )
                       AND (
                             :radiusKm IS NULL OR
                             (6371 * acos(least(1.0, greatest(-1.0,
@@ -127,6 +171,13 @@ public interface ListingRepository extends JpaRepository<Listing, Long> {
             @Param("minBedrooms") Integer minBedrooms,
             @Param("minBathrooms") Integer minBathrooms,
             @Param("neighbourhood") String neighbourhood,
+            @Param("maxNoiseLevel") Integer maxNoiseLevel,
+            @Param("maxFloodRiskLevel") Integer maxFloodRiskLevel,
+            @Param("minRoadAccessQuality") Integer minRoadAccessQuality,
+            @Param("minSecurityLevel") Integer minSecurityLevel,
+            @Param("minWaterReliability") Integer minWaterReliability,
+            @Param("minPowerReliability") Integer minPowerReliability,
+            @Param("requireAmenityType") String requireAmenityType,
             @Param("sort") String sort,
             Pageable pageable
     );

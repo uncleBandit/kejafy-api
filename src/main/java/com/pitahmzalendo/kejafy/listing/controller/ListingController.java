@@ -1,8 +1,10 @@
 package com.pitahmzalendo.kejafy.listing.controller;
 
 import com.pitahmzalendo.kejafy.config.security.KejafyOidcUser;
+import com.pitahmzalendo.kejafy.listing.dto.request.AddListingAmenityRequest;
 import com.pitahmzalendo.kejafy.listing.dto.request.AddListingVideoRequest;
 import com.pitahmzalendo.kejafy.listing.dto.request.CreateListingRequest;
+import com.pitahmzalendo.kejafy.listing.dto.request.UpdateEnvironmentProfileRequest;
 import com.pitahmzalendo.kejafy.listing.dto.request.UpdateListingRequest;
 import com.pitahmzalendo.kejafy.listing.dto.response.ListingDetailResponse;
 import com.pitahmzalendo.kejafy.listing.service.ListingService;
@@ -90,6 +92,39 @@ public class ListingController {
             @Valid @RequestBody AddListingVideoRequest request
     ) {
         var listing = listingService.addVideo(id, principal.getDomainUser(), request);
+        return ResponseEntity.ok(ListingDetailResponse.from(listing));
+    }
+
+    @PostMapping("/{id}/amenities")
+    @Operation(summary = "Attach a nearby amenity (school, hospital, matatu stage, etc) to a listing")
+    public ResponseEntity<ListingDetailResponse> addAmenity(
+            @PathVariable Long id,
+            @AuthenticationPrincipal KejafyOidcUser principal,
+            @Valid @RequestBody AddListingAmenityRequest request
+    ) {
+        var listing = listingService.addAmenity(id, principal.getDomainUser(), request);
+        return ResponseEntity.ok(ListingDetailResponse.from(listing));
+    }
+
+    @DeleteMapping("/{id}/amenities/{amenityId}")
+    @Operation(summary = "Remove a nearby amenity from a listing")
+    public ResponseEntity<ListingDetailResponse> removeAmenity(
+            @PathVariable Long id,
+            @PathVariable Long amenityId,
+            @AuthenticationPrincipal KejafyOidcUser principal
+    ) {
+        var listing = listingService.removeAmenity(id, amenityId, principal.getDomainUser());
+        return ResponseEntity.ok(ListingDetailResponse.from(listing));
+    }
+
+    @PutMapping("/{id}/environment-profile")
+    @Operation(summary = "Set/update the listing's noise, flood-risk, road-access, security and utility scores")
+    public ResponseEntity<ListingDetailResponse> updateEnvironmentProfile(
+            @PathVariable Long id,
+            @AuthenticationPrincipal KejafyOidcUser principal,
+            @Valid @RequestBody UpdateEnvironmentProfileRequest request
+    ) {
+        var listing = listingService.updateEnvironmentProfile(id, principal.getDomainUser(), request);
         return ResponseEntity.ok(ListingDetailResponse.from(listing));
     }
 
