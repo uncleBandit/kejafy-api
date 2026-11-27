@@ -43,8 +43,10 @@ SCHEME=$([ "$TLS" = true ] && echo https || echo http)
 
 log "Java 21…"
 if ! java -version 2>&1 | grep -q '"21'; then
-    apt-get update -y
-    apt-get install -y openjdk-21-jre-headless
+    # Try the cached package lists first: an unrelated third-party repo
+    # (e.g. a PPA that changed its Label) can make `apt-get update` fail.
+    apt-get install -y openjdk-21-jre-headless \
+        || { apt-get update -y; apt-get install -y openjdk-21-jre-headless; }
 fi
 
 log "Folders…"
